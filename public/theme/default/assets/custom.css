@@ -414,3 +414,188 @@ html[data-mundo-theme="darkblue"] body.mundo-user-shell {
         background: #263347 !important;
     }
 }
+
+/* Mobile usability: keep controls tappable and scrolling inside their own panels. */
+@media (max-width: 767px) {
+    .mundo-user-shell #page-container,
+    .mundo-user-shell #main-container {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .mundo-user-shell #page-header {
+        box-sizing: border-box;
+        height: calc(56px + env(safe-area-inset-top));
+        padding-top: env(safe-area-inset-top);
+    }
+
+    .mundo-user-shell #page-header > .content-header {
+        box-sizing: border-box;
+        height: 48px;
+        min-height: 48px;
+        margin: 4px 8px;
+        padding-right: max(8px, env(safe-area-inset-right));
+        padding-left: max(8px, env(safe-area-inset-left));
+        gap: 4px;
+        border-radius: 12px;
+    }
+
+    .mundo-user-shell #page-header .v2board-container-title {
+        max-width: min(46vw, 220px);
+        overflow: hidden;
+        font-size: 15px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .mundo-user-shell #page-header :is(.btn, button, [role="button"]) {
+        min-width: 42px;
+        min-height: 42px;
+    }
+
+    .mundo-user-shell #page-container.page-header-fixed #main-container {
+        padding-top: calc(56px + env(safe-area-inset-top));
+    }
+
+    .mundo-user-shell #main-container > .p-0.p-lg-4 {
+        padding: 12px max(12px, env(safe-area-inset-right))
+            max(20px, env(safe-area-inset-bottom))
+            max(12px, env(safe-area-inset-left)) !important;
+    }
+
+    .mundo-user-shell .block {
+        margin-bottom: 12px;
+    }
+
+    .mundo-user-shell .block-header,
+    .mundo-user-shell .block-header-default {
+        min-height: 46px;
+        padding: 10px 12px;
+    }
+
+    .mundo-user-shell .block-content {
+        padding: 12px 12px 1px;
+    }
+
+    .mundo-user-shell :is(.ant-input, .ant-input-affix-wrapper, .ant-input-number-input,
+        .ant-select-selector, .ant-select-selection-search-input, .ant-picker,
+        .form-control, select, textarea) {
+        font-size: 16px !important;
+    }
+
+    .mundo-user-shell :is(.ant-input, .ant-input-affix-wrapper, .ant-input-number,
+        .ant-select-selector, .ant-picker, .form-control, select) {
+        min-height: 44px;
+    }
+
+    .mundo-user-shell :is(.ant-btn, .btn, [role="button"]) {
+        min-height: 44px;
+    }
+
+    .mundo-user-shell :is(.ant-table-wrapper, .ant-table-content, .ant-table-body, .table-responsive) {
+        max-width: 100%;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        touch-action: pan-x pan-y;
+    }
+
+    .mundo-user-shell .ant-table-wrapper {
+        width: 100%;
+    }
+
+    .mundo-user-shell .ant-table-content > table,
+    .mundo-user-shell .table-responsive > .table {
+        min-width: max-content;
+    }
+
+    .mundo-user-shell .ant-drawer-content-wrapper {
+        width: 100vw !important;
+        max-width: 100vw;
+    }
+
+    .mundo-user-shell .ant-drawer-header {
+        padding-top: max(14px, env(safe-area-inset-top));
+        padding-right: max(14px, env(safe-area-inset-right));
+        padding-left: max(14px, env(safe-area-inset-left));
+    }
+
+    .mundo-user-shell .ant-drawer-body {
+        padding: 16px max(14px, env(safe-area-inset-right))
+            max(16px, env(safe-area-inset-bottom))
+            max(14px, env(safe-area-inset-left));
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .mundo-user-shell .ant-modal-wrap {
+        overflow-y: auto;
+        padding: max(8px, env(safe-area-inset-top)) 8px
+            max(8px, env(safe-area-inset-bottom));
+        overscroll-behavior: contain;
+    }
+
+    .mundo-user-shell .ant-modal {
+        top: 0 !important;
+        width: calc(100vw - 16px) !important;
+        max-width: 560px !important;
+        margin: 0 auto;
+        padding-bottom: 0;
+    }
+
+    .mundo-user-shell .ant-modal-content {
+        display: flex;
+        max-height: calc(100vh - 16px);
+        max-height: calc(100dvh - max(16px, env(safe-area-inset-top))
+            - max(16px, env(safe-area-inset-bottom)));
+        flex-direction: column;
+    }
+
+    .mundo-user-shell .ant-modal-header {
+        flex: 0 0 auto;
+        padding: 14px 16px;
+    }
+
+    .mundo-user-shell .ant-modal-body {
+        min-height: 0;
+        padding: 16px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .mundo-user-shell .ant-modal-footer {
+        display: flex;
+        flex: 0 0 auto;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 12px 14px max(12px, env(safe-area-inset-bottom));
+    }
+
+    .mundo-user-shell .ant-modal-footer .ant-btn {
+        min-height: 44px;
+        margin-left: 0 !important;
+    }
+}
+
+@media (max-width: 479px) {
+    .mundo-user-shell .v2board-auth-box > div {
+        padding: 12px;
+    }
+
+    .mundo-user-shell .v2board-auth-box .block {
+        border-radius: 16px !important;
+    }
+
+    .mundo-user-shell .ant-modal-header,
+    .mundo-user-shell .ant-modal-body {
+        padding-right: 13px;
+        padding-left: 13px;
+    }
+
+    .mundo-user-shell .ant-modal-footer .ant-btn {
+        flex: 1 1 auto;
+    }
+}
