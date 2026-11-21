@@ -1,0 +1,110 @@
+name: Upstream update watch
+
+on:
+  schedule:
+    - cron: "17 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: upstream-update-watch-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  report:
+    name: Review upstream changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out MXboard
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Compare against upstream
+        id: compare
+        shell: bash
+        run: |
+          set -euo pipefail
+          upstream_ref=refs/remotes/upstream/master
+          git remote add upstream https://github.com/Mundo-Connect/v2board.git
+          git fetch --no-tags upstream master
+
+          if ! merge_base="$(git merge-base HEAD "$upstream_ref")"; then
+            echo "No common ancestor exists between this branch and upstream/master." >&2
+            exit 1
+          fi
+
+          upstream_head="$(git rev-parse "$upstream_ref")"
+          pending="$(git rev-list --count "${merge_base}..${upstream_ref}")"
+          fork_only="$(git rev-list --count "${upstream_ref}..HEAD")"
+          {
+            echo "pending=$pending"
+            echo "upstream_head=$upstream_head"
+          } >> "$GITHUB_OUTPUT"
+
+          if [[ "$pending" -eq 0 ]]; then
+            echo "This branch includes the current upstream master."
+            exit 0
+          fi
+
+          report_file="$RUNNER_TEMP/upstream-report.md"
+          {
+            echo "<!-- generated-by-upstream-watch -->"
+            echo "This report compares `basumobai/MXboard:${GITHUB_REF_NAME}` with `Mundo-Connect/v2board:master`."
+            echo
+            echo "- Common ancestor: `$merge_base`"
+            echo "- Current upstream head: `$upstream_head`"
+            echo "- Upstream-only commits: **$pending**"
+            echo "- Fork-only commits: **$fork_only**"
+            echo
+            echo "[Review upstream changes](https://github.com/Mundo-Connect/v2board/compare/${merge_base}...${upstream_head})"
+            echo
+            echo "This fork has substantial custom changes. Review each upstream commit for compatibility before backporting; this workflow never merges code automatically."
+            echo
+            echo "## Upstream commits"
+            git log --reverse --format='- [`%h`](https://github.com/Mundo-Connect/v2board/commit/%H) %s' "${merge_base}..${upstream_ref}"
+            echo
+            echo "## Changed paths"
+            echo '```text'
+            git diff --name-status "${merge_base}...${upstream_ref}"
+            echo '```'
+          } > "$report_file"
+          echo "report_file=$report_file" >> "$GITHUB_OUTPUT"
+
+      - name: Open or refresh the review issue
+        if: steps.compare.outputs.pending != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          REPORT_FILE: ${{ steps.compare.outputs.report_file }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          title="Review upstream changes from Mundo-Connect/v2board"
+          issue_number="$(gh issue list \
+            --repo "$REPOSITORY" \
+            --state open \
+            --limit 100 \
+            --json number,title \
+            --jq 'map(select(.title == "Review upstream changes from Mundo-Connect/v2board")) | .[0].number // empty')"
+
+          if [[ -n "$issue_number" ]]; then
+            current_body="$(gh issue view "$issue_number" --repo "$REPOSITORY" --json body --jq '.body')"
+            next_body="$(cat "$REPORT_FILE")"
+            if [[ "$current_body" != "$next_body" ]]; then
+              gh issue edit "$issue_number" --repo "$REPOSITORY" --body-file "$REPORT_FILE"
+              echo "Refreshed issue #$issue_number."
+            else
+              echo "Issue #$issue_number already contains the latest upstream report."
+            fi
+          else
+            gh issue create \
+              --repo "$REPOSITORY" \
+              --title "$title" \
+              --body-file "$REPORT_FILE"
+          fi
