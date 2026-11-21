@@ -21,6 +21,16 @@ source scripts/deploy-common.sh
 command -v flock >/dev/null || fail '需要 flock 命令（util-linux）。'
 exec 9>.install.lock
 flock -n 9 || fail '当前目录已有安装或更新任务。'
+
+# Nginx may return 403 for assets whose read/traverse bits were lost under
+# the old 077 umask. Repair these before the dirty-worktree gate so a blocked
+# update can still bring the admin UI back.
+repair_public_permissions() {
+    [[ -d public ]] || return 0
+    find public -type d -exec chmod u+rwx,go+rx {} +
+    find public -type f -exec chmod u+rw,go+r {} +
+}
+repair_public_permissions
 require_docker
 [[ -s .env && -s config/v2board.php ]] || fail '没有完整的现有配置，全新安装请运行 bash init.sh。'
 [[ -d .git || -f .git ]] || fail '当前目录不是 Git 仓库，无法安全更新。'
@@ -148,11 +158,9 @@ umask 022
 # removed by a fast-forward merge. No reset --hard, clean, or volume removal.
 git merge --ff-only "$new_commit"
 code_switched=true
-# Repair installations already affected by the leaked 077 umask. Everything in
-# public is web-facing by definition; keep owner write access and grant Nginx
-# traversal/read access without following symlinks.
-find public -type d -exec chmod u+rwx,go+rx {} +
-find public -type f -exec chmod u+rw,go+r {} +
+# Repair permissions again after the fast-forward so newly introduced
+# public assets are readable by Nginx as well.
+repair_public_permissions
 docker compose config --quiet
 docker compose build --pull web gateway </dev/null
 docker compose up -d --wait --wait-timeout 120 redis
