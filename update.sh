@@ -30,10 +30,10 @@ repair_public_permissions() {
     find public -type d -exec chmod u+rwx,go+rx {} +
     find public -type f -exec chmod u+rw,go+r {} +
 }
-repair_public_permissions
 require_docker
 [[ -s .env && -s config/v2board.php ]] || fail '没有完整的现有配置，全新安装请运行 bash init.sh。'
 [[ -d .git || -f .git ]] || fail '当前目录不是 Git 仓库，无法安全更新。'
+repair_public_permissions
 if [[ -n $(git status --porcelain) ]]; then
     echo '工作区存在未提交修改。请先提交或另行保存；不会覆盖你的定制。' >&2
     git status --short
