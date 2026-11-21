@@ -30,7 +30,7 @@
 准备好本机 Docker / Compose 2.20+ 和一个空 MySQL 数据库后，执行：
 
 ```bash
-git clone https://github.com/basumobai/MXboard.git mundo-v2board
+git clone https://github.com/basumobai/MXboard.git mxboard
 cd mxboard
 
 bash init.sh
@@ -61,7 +61,7 @@ git branch --show-current
 git status --short
 ```
 
-`origin` 应指向 `basumobai/MXboard` 或你维护的兼容镜像；分支应有对应的 origin 分支。若 `git status --short` 有输出，先保存或提交这些改动。更新脚本会拒绝未提交修改、detached HEAD 和非快进更新。
+`origin` 应指向 `basumobai/MXboard` 或你维护的兼容镜像；分支应有对应的 origin 分支。若 `git status --short` 有输出，先停止更新并安全保存这些改动；把定制放到开发分支并合入部署仓库后，再让生产分支保持干净且可快进。不要在生产目录用 `reset --hard` 或 `git clean` 清理。更新脚本会拒绝未提交修改、detached HEAD 和非快进更新。
 
 正常执行：
 
