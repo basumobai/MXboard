@@ -125,7 +125,7 @@ git branch --show-current
 git status --short
 ```
 
-`origin` 应指向 MXboard 或你明确维护的兼容镜像，当前分支需要有同名的远端分支。`git status --short` 有输出时先保存或提交本地修改；更新脚本不会覆盖未提交内容。不要先执行 `git pull`，也不要使用 `git reset --hard` 或 `git clean`。
+`origin` 应指向 MXboard 或你明确维护的兼容镜像，当前分支需要有同名的远端分支。`git status --short` 有输出时先停止更新并安全保存本地修改；把定制放到开发分支并合入部署仓库后，再让生产分支保持干净且可快进。不要在生产目录用 `git reset --hard` 或 `git clean` 清理。更新脚本不会覆盖未提交内容，也不要先执行 `git pull`。
 
 如果服务器上旧版 `update.sh` 尚无自动备份能力，首次只需通过下面的引导命令运行远端新版脚本：
 
