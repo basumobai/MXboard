@@ -10,7 +10,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: upstream-update-watch-${{ github.ref }}
+  group: upstream-update-watch
   cancel-in-progress: true
 
 jobs:
@@ -19,9 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check out MXboard
+      - name: Check out MXboard master
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
+          ref: master
           fetch-depth: 0
           persist-credentials: false
 
@@ -35,7 +36,7 @@ jobs:
           git fetch --no-tags upstream master
 
           if ! merge_base="$(git merge-base HEAD "$upstream_ref")"; then
-            echo "No common ancestor exists between this branch and upstream/master." >&2
+            echo "No common ancestor exists between MXboard master and upstream/master." >&2
             exit 1
           fi
 
@@ -48,14 +49,14 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
           if [[ "$pending" -eq 0 ]]; then
-            echo "This branch includes the current upstream master."
+            echo "MXboard master includes the current upstream master."
             exit 0
           fi
 
           report_file="$RUNNER_TEMP/upstream-report.md"
           {
             echo "<!-- generated-by-upstream-watch -->"
-            printf 'This report compares `%s` with `%s`.\n' "basumobai/MXboard:${GITHUB_REF_NAME}" "Mundo-Connect/v2board:master"
+            printf 'This report compares `%s` with `%s`.\n' 'basumobai/MXboard:master' 'Mundo-Connect/v2board:master'
             echo
             printf -- '- Common ancestor: `%s`\n' "$merge_base"
             printf -- '- Current upstream head: `%s`\n' "$upstream_head"
@@ -76,11 +77,11 @@ jobs:
           } > "$report_file"
           echo "report_file=$report_file" >> "$GITHUB_OUTPUT"
 
-      - name: Open or refresh the review issue
-        if: steps.compare.outputs.pending != '0'
+      - name: Open, refresh, or close the review issue
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
+          PENDING: ${{ steps.compare.outputs.pending }}
           REPORT_FILE: ${{ steps.compare.outputs.report_file }}
         shell: bash
         run: |
@@ -92,6 +93,17 @@ jobs:
             --limit 100 \
             --json number,title \
             --jq 'map(select(.title == "Review upstream changes from Mundo-Connect/v2board")) | .[0].number // empty')"
+
+          if [[ "$PENDING" == "0" ]]; then
+            if [[ -n "$issue_number" ]]; then
+              current_body="$(gh issue view "$issue_number" --repo "$REPOSITORY" --json body --jq '.body')"
+              if [[ "$current_body" == *"<!-- generated-by-upstream-watch -->"* ]]; then
+                gh issue close "$issue_number" --repo "$REPOSITORY" --reason completed \
+                  --comment "No upstream-only commits remain on MXboard master."
+              fi
+            fi
+            exit 0
+          fi
 
           if [[ -n "$issue_number" ]]; then
             current_body="$(gh issue view "$issue_number" --repo "$REPOSITORY" --json body --jq '.body')"
