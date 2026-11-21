@@ -20,16 +20,14 @@ bash init.sh
 
 ## 更新已有面板
 
-在面板目录运行：
+进入面板目录，先检查本地改动：
 
 ```bash
 git status --short
-bash update.sh
 ```
 
-工作区干净时，`bash update.sh` 就是日常更新命令。脚本会备份源码、MySQL 和 Redis，再更新并重启服务；更新期间网站会短暂不可用。不要先运行 `git pull`。
-
-如果 `git status --short` 列出了文件（例如 `public/` 下的改动），先在维护窗口把本地改动收起来，再更新：
+- **没有输出：**直接运行 `bash update.sh`。
+- **列出了文件：**先在维护窗口把改动暂存，再运行更新：
 
 ```bash
 git stash push -u -m "before-mxboard-update"
@@ -37,9 +35,9 @@ bash update.sh
 git stash list
 ```
 
-`-u` 会一并保存未跟踪文件。改动仍保留在本机的 stash 中。需要保留自定义内容时，更新后先检查再选择性恢复；不要直接覆盖新版文件。遇到冲突先停下来核对，别用 `git restore`、`git reset --hard` 或 `git clean` 清理。
+`-u` 会连未跟踪文件一起保存；你这次列出的 `public/` 文件和 `admin.tar.gz` 都会保留在本机 stash 中。更新会短暂停站，脚本会自动备份源码、MySQL 和 Redis；不要先运行 `git pull`。
 
-更新后可用 `docker compose ps` 检查服务。备份和恢复细节见[安全更新与恢复](./docs/safe-update.md)。
+如果这些本地文件是你需要继续使用的定制，更新后先检查再恢复。确认整份改动都适用于新版时，可以运行 `git stash apply stash@{0}`；遇到冲突就停下核对，别用 `git restore`、`git reset --hard` 或 `git clean` 覆盖文件。更新恢复说明见[安全更新与恢复](./docs/safe-update.md)。
 
 生产更新跟随 MXboard 的 `origin`。上游变更须先在开发分支审查并合入 MXboard，不要让生产服务器直接更新 Mundo-Connect/v2board。
 
