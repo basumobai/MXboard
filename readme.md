@@ -1,152 +1,58 @@
-<img src="https://avatars.githubusercontent.com/u/56885001?s=200&v=4" alt="Mundo logo" width="130" height="130" align="right"/>
+<img src="https://avatars.githubusercontent.com/u/56885001?s=200&v=4" alt="Mundo logo" width="96" height="96" align="right"/>
 
 # MXboard
 
-基于 [Mundo-Connect/v2board](https://github.com/Mundo-Connect/v2board) 的 Docker 部署分支，面向 Ubuntu、宝塔 Nginx、宿主机 MySQL 和 Mundo X 节点。
+基于 [Mundo-Connect/v2board](https://github.com/Mundo-Connect/v2board) 的 Docker 部署分支，适用于 Linux、Docker、MySQL 和 Mundo X 节点。
 
-本分支提供：
+[完整安装与故障排查](./How%20to%20build.md) · [安全更新与恢复](./docs/safe-update.md) · [上游项目](https://github.com/Mundo-Connect/v2board)
 
-- Laravel 13、PHP 8.4.27、AdapterMan、Nginx、Redis、Horizon 和 Scheduler 的 Compose 配置；
-- 安装时自定义 Web / Nginx 端口与 Worker 数量，默认端口 6600 / 7001，仅监听本机；
-- 同机多实例的容器、镜像、Redis 数据卷和缓存前缀隔离；
-- AdapterMan 常驻 Worker 下按内容变化刷新的动态配置缓存；
-- production 环境队列配置、视图预编译、HTTP 健康检查与日志轮转；
-- 节点报告以 MySQL 报告账本保证重试幂等；用户流量扣费与日统计在同一事务完成；
-- 兼容旧队列和 Redis 流量批次，重置账期时记录边界，避免迟到报告扣减新账期；
-- 更新前排空旧队列，严格校验数据库迁移和账本索引，校验失败时停止启动新版服务；
-- V2Board 管理员令牌驱动的 Horizon 鉴权；
-- 数据库事务跨请求隔离；
-- 严格认证与即时撤权、支付配置/金额绑定、订单并发幂等和敏感日志脱敏；
-- 可选的独立网络、非 root、源码只读部署，以及依赖审计、镜像扫描和 SBOM；
-- Mundo X、VMess、VLESS、Shadowsocks 等节点复制修复；
-- 完整安装、验收、备份和故障排查文档。
+## 安装
 
-## 部署文档
-
-[阅读完整 Docker 部署与排错指南](./How%20to%20build.md)
-
-[安全升级记录与上游提交处置](./docs/security-upgrade-20261101.md) · [隔离部署迁移](./docs/hardened-deployment.md) · [安全更新与恢复](./docs/safe-update.md)
-
-准备好本机 Docker / Compose 2.20+ 和一个空 MySQL 数据库后，执行：
+准备 Linux 服务器、Docker Engine + Compose 2.20+、Git 和一个空 MySQL 数据库。宿主机不需要安装 PHP 或 Composer。
 
 ```bash
 git clone https://github.com/basumobai/MXboard.git mxboard
 cd mxboard
-
 bash init.sh
 ```
 
-按提示填写实例名、端口、资源参数、网址、数据库连接（包括端口）和管理员邮箱。脚本自动完成后显示后台地址、初始密码及宝塔反向代理目标。无需在宿主机安装 PHP / Composer，不用手工改 Compose 或 Nginx 配置。
+按提示填写实例、端口、网址、数据库和管理员邮箱。安装完成时保存显示的初始密码并及时修改。已有面板不要运行 `init.sh`。
 
-第二套面板使用另一个克隆目录和独立数据库，在运行安装器时选择不同的实例名和端口，也可以预设：
+## 更新已有面板
 
-```bash
-COMPOSE_PROJECT_NAME=panel-b WEB_PORT=6601 GATEWAY_PORT=7002 bash init.sh
-```
-
-安装器会检测冲突，拒绝重装已有站点。详细的 HTTPS、多实例、更新和失败恢复说明见上方部署指南。已有站点请先备份并使用更新流程，不要重新运行 init.sh。
-
-## 已有站点更新
-
-生产实例应从 MXboard（或你的部署镜像）的 `origin` 更新。更新脚本会读取当前分支，并只接受同名远端分支的快进更新；它不会直接拉取 Mundo-Connect 上游代码。更新期间 Web 入口会暂时不可用，请安排维护窗口。
-
-### 常规更新
-
-先进入已部署的面板目录，确认仓库、分支和工作区：
+在面板目录运行：
 
 ```bash
-cd /path/to/panel
-git remote get-url origin
-git branch --show-current
 git status --short
-```
-
-`origin` 应指向 `basumobai/MXboard` 或你维护的兼容镜像；分支应有对应的 origin 分支。若 `git status --short` 有输出，先停止更新并安全保存这些改动；把定制放到开发分支并合入部署仓库后，再让生产分支保持干净且可快进。不要在生产目录用 `reset --hard` 或 `git clean` 清理。更新脚本会拒绝未提交修改、detached HEAD 和非快进更新。
-
-正常执行：
-
-```bash
 bash update.sh
 ```
 
-备份默认放在项目目录旁的 `mundo-backups/`。也可以指定项目目录之外、空间充足且不对公网开放的位置：
+工作区干净时，`bash update.sh` 就是日常更新命令。脚本会备份源码、MySQL 和 Redis，再更新并重启服务；更新期间网站会短暂不可用。不要先运行 `git pull`。
+
+如果 `git status --short` 列出了文件（例如 `public/` 下的改动），先在维护窗口把本地改动收起来，再更新：
 
 ```bash
-UPDATE_BACKUP_ROOT=/srv/backups/mxboard bash update.sh
+git stash push -u -m "before-mxboard-update"
+bash update.sh
+git stash list
 ```
 
-脚本会先获取远端代码、检查 Compose 配置并准备数据库备份工具，再停止入口/Web/Scheduler，等待旧的 `traffic_fetch` 与 `stat` 队列排空（最多 10 分钟），停止 Horizon 和 Redis，并备份源码、配置、主题、storage、MySQL 与 Redis。只有备份校验成功后才切换代码、重建镜像、安装锁定依赖、执行升级和健康检查。不要先运行 `git pull`。
+`-u` 会一并保存未跟踪文件。改动仍保留在本机的 stash 中。需要保留自定义内容时，更新后先检查再选择性恢复；不要直接覆盖新版文件。遇到冲突先停下来核对，别用 `git restore`、`git reset --hard` 或 `git clean` 清理。
 
-### 旧版更新脚本的首次升级
+更新后可用 `docker compose ps` 检查服务。备份和恢复细节见[安全更新与恢复](./docs/safe-update.md)。
 
-如果服务器上的旧 `update.sh` 还没有自动备份功能，只需先运行一次下面的引导命令。它会从当前分支读取新版脚本并执行，由新版脚本负责完成备份和快进更新：
+生产更新跟随 MXboard 的 `origin`。上游变更须先在开发分支审查并合入 MXboard，不要让生产服务器直接更新 Mundo-Connect/v2board。
 
-```bash
-set -euo pipefail
-branch=$(git branch --show-current)
-test -n "$branch"
-git fetch origin "$branch"
-git show FETCH_HEAD:update.sh | bash -s -- --project-dir "$PWD"
-```
+## 注意
 
-确认 `origin`、分支和工作区符合上面的要求后再运行。首次引导完成后，后续更新都使用 `bash update.sh`。
+- 不要运行 `docker compose down -v`，这会删除 Redis 数据卷。
+- 不要执行 `php artisan config:cache`，面板动态配置需要保持可重新载入。
+- 不要公开 `.env`、数据库密码、管理员令牌或节点 Token。
 
-### 更新后与失败时
+<details>
+<summary>私有仓库部署（高级）</summary>
 
-更新完成后检查服务和 Horizon，再实际登录管理端并确认节点上报、用户流量与日统计正常：
-
-```bash
-docker compose ps
-docker compose logs --tail=80 web gateway horizon scheduler
-docker compose exec horizon php artisan horizon:status
-```
-
-若脚本在切换源码前失败，会尝试重新启动旧服务；保留输出中的备份路径并先查日志。若源码已经切换，脚本不会自动倒退数据库或 Redis。按[安全更新与恢复指南](./docs/safe-update.md)检查校验和，并将同一备份中的源码、MySQL 和 Redis 一起恢复。不要单独回滚数据库、重新运行安装器、执行 `git reset --hard` 或 `docker compose down -v`。
-
-安装器 `init.sh` 只用于全新空数据库的首次安装，不能用于已有站点更新。
-
-## 跟进 Mundo-Connect 上游
-
-MXboard 的生产更新源是 `origin`；Mundo-Connect/v2board 是供维护者检查和挑选改动的 `upstream`。不要把生产服务器的 `origin` 改成上游，也不要直接在生产服务器合并上游分支。
-
-在开发工作副本中首次添加上游并检查差异：
-
-```bash
-git remote add upstream https://github.com/Mundo-Connect/v2board.git
-git fetch upstream
-git log --oneline --left-right --cherry-pick master...upstream/master
-git diff --stat master...upstream/master
-```
-
-逐项审查上游改动与本仓库的 Docker 部署、Laravel/PHP 版本、流量账本、队列和支付适配是否兼容；在独立开发分支中移植并验证后，再通过 Pull Request 合入 MXboard。生产机只从 MXboard 的 `origin` 更新。
-
-## Mundo X
-
-- [Mundo X 后端](https://github.com/Mundo-Connect/M)
-- [Mundo X 网站](https://668993.xyz)
-- Telegram：[@mconnectofficial](https://t.me/mconnectofficial)
-
-## 重要注意事项
-
-- 不要提交 `.env`、数据库密码、管理员令牌或节点通信密钥；
-- 不要运行 `docker compose down -v`，它会删除 Redis 数据卷；
-- 不要执行 `php artisan config:cache`，动态面板配置必须保持可重新载入；
-- 不要在生产目录直接运行会执行 `git reset --hard` 的更新脚本；
-- 更新前先备份数据库、Redis 数据卷、`.env`、`config/v2board.php` 和主题配置。
-
-## 当前运行要求
-
-- PHP 8.3+；本 Docker 运行环境使用 PHP 8.4.27 / Alpine 3.24，并在构建时安装系统安全更新；
-- MySQL；
-- Redis；
-- Composer 按锁文件安装；
-- Laravel 13.39.0。非 Docker 部署须自行验证 PHP 补丁和扩展；旧 Laravel 8 环境不能直接复用旧 vendor。
-
-## 反馈
-
-提交 Issue 时请提供可复现步骤、相关容器状态和已经打码的日志。不要公开密码、JWT、订阅令牌或节点通信密钥。
-
-## 私有部署仓库：服务器拉取与更新
+### 服务器拉取与更新
 
 仓库转为 Private 后，匿名 HTTPS `git clone` / `git pull` 无法继续使用。推荐给每台服务器配置**每仓库独立的只读 SSH Deploy Key**，不需要把 PAT 放进 README、Git URL 或环境配置。
 
@@ -172,3 +78,5 @@ git fetch origin
 已有 Git 工作树可先备份，再用 `git remote set-url origin git@github.com:basumobai/仓库名.git` 修改 origin，并设置上述 `core.sshCommand`。之后 `git pull` / `git fetch` 会自动使用只读 Deploy Key；GitHub SSH 主机指纹应按官方文档校验。部署密钥与应用内部的 API Key、节点 Token 是两种不同的凭证。
 
 **Fork 迁移提醒：** 本仓库当前仍是公开 Fork。方案 B 的正确顺序为：先建立独立的 Private 仓库，完整镜像推送代码及分支、Tag；核验新仓库后将生产目录的 `origin` 改成实际新仓库地址。上方克隆地址只有在该原仓库本身可设为 Private 的情况下才适用；对于独立副本，请替换为新仓库名。`update.sh` 本身通过 `git fetch origin` 获取更新，只要部署密钥配置好即可继续工作。**不要在迁移前删除原 Fork，也不要在生产目录执行镜像覆盖命令。**
+
+</details>
