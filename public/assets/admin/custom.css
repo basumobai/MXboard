@@ -1746,3 +1746,184 @@ textarea.ant-input {
         border: 1px solid CanvasText;
     }
 }
+
+/* Mobile usability pass: safe-area layout, reachable controls, and scrollable tables. */
+@media (max-width: 767.98px) {
+    #page-container,
+    #main-container {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    #page-header {
+        box-sizing: border-box;
+        height: calc(74px + env(safe-area-inset-top));
+        padding-top: env(safe-area-inset-top);
+    }
+
+    #page-container.page-header-fixed #main-container {
+        padding-top: calc(74px + env(safe-area-inset-top));
+    }
+
+    #page-header > .content-header {
+        padding-right: max(10px, env(safe-area-inset-right));
+        padding-left: max(10px, env(safe-area-inset-left));
+    }
+
+    #main-container > .p-0.p-lg-4 {
+        padding-right: max(12px, env(safe-area-inset-right)) !important;
+        padding-left: max(12px, env(safe-area-inset-left)) !important;
+        padding-bottom: max(20px, env(safe-area-inset-bottom)) !important;
+    }
+
+    :is(.ant-input, .ant-input-affix-wrapper, .ant-input-number-input,
+        .ant-select-selector, .ant-select-selection-search-input, .ant-picker,
+        .form-control, select, textarea) {
+        font-size: 16px !important;
+    }
+
+    :is(.ant-input, .ant-input-affix-wrapper, .ant-input-number,
+        .ant-select-selector, .ant-picker, .form-control, select) {
+        min-height: 44px;
+    }
+
+    :is(.ant-btn, .btn, [role="button"]) {
+        min-height: 44px;
+    }
+
+    .ant-table-wrapper,
+    .ant-table-content,
+    .ant-table-body {
+        max-width: 100%;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        touch-action: pan-x pan-y;
+    }
+
+    .ant-table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    .ant-table-content > table {
+        min-width: max-content;
+    }
+
+    .v2board-table-action {
+        top: calc(74px + env(safe-area-inset-top));
+        z-index: 50;
+        gap: 8px;
+        padding-right: max(12px, env(safe-area-inset-right)) !important;
+        padding-left: max(12px, env(safe-area-inset-left)) !important;
+    }
+
+    .v2board-table-action :is(.ant-btn, .ant-input) {
+        min-height: 44px;
+    }
+
+    .ant-drawer-content-wrapper,
+    .v2board-filter-drawer .ant-drawer-content-wrapper {
+        width: 100vw !important;
+        max-width: 100vw;
+    }
+
+    .ant-drawer-header {
+        padding-top: max(14px, env(safe-area-inset-top));
+        padding-right: max(14px, env(safe-area-inset-right));
+        padding-left: max(14px, env(safe-area-inset-left));
+    }
+
+    .ant-drawer-body {
+        padding: 16px max(14px, env(safe-area-inset-right))
+            max(16px, env(safe-area-inset-bottom))
+            max(14px, env(safe-area-inset-left));
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .v2board-drawer-action {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding-right: max(14px, env(safe-area-inset-right));
+        padding-bottom: max(13px, env(safe-area-inset-bottom));
+        padding-left: max(14px, env(safe-area-inset-left));
+    }
+
+    .v2board-drawer-action .ant-btn + .ant-btn {
+        margin-left: 0;
+    }
+
+    .ant-modal-wrap {
+        overflow-y: auto;
+        padding: max(8px, env(safe-area-inset-top)) 8px
+            max(8px, env(safe-area-inset-bottom));
+        overscroll-behavior: contain;
+    }
+
+    .ant-modal {
+        top: 0 !important;
+        width: calc(100vw - 16px) !important;
+        max-width: 720px !important;
+        margin: 0 auto;
+        padding-bottom: 0;
+    }
+
+    .ant-modal-content {
+        display: flex;
+        max-height: calc(100vh - 16px);
+        max-height: calc(100dvh - max(16px, env(safe-area-inset-top))
+            - max(16px, env(safe-area-inset-bottom)));
+        flex-direction: column;
+    }
+
+    .ant-modal-header {
+        flex: 0 0 auto;
+        padding: 14px 16px;
+    }
+
+    .ant-modal-body {
+        min-height: 0;
+        padding: 16px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .ant-modal-footer {
+        display: flex;
+        flex: 0 0 auto;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 12px 14px max(12px, env(safe-area-inset-bottom));
+    }
+
+    .ant-modal-footer .ant-btn {
+        min-height: 44px;
+        margin-left: 0 !important;
+    }
+}
+
+@media (max-width: 479.98px) {
+    #page-header .v2board-container-title {
+        max-width: 44vw;
+    }
+
+    .v2board-table-action > .ant-input {
+        order: 3;
+        flex-basis: 100%;
+    }
+
+    .ant-modal-header,
+    .ant-modal-body {
+        padding-right: 13px;
+        padding-left: 13px;
+    }
+
+    .ant-modal-footer .ant-btn {
+        flex: 1 1 auto;
+    }
+}
