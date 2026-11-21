@@ -70,6 +70,26 @@ UPDATE_BACKUP_ROOT=/srv/backups/mxboard bash update.sh
 
 ## 恢复
 
+### 管理界面空白、静态资源返回 403
+
+如果后台只显示“跳到主要内容”或白屏，先检查 CSS 和 JavaScript 是否能被 Nginx 读取：
+
+```bash
+curl -I https://你的面板域名/assets/admin/custom.css
+curl -I https://你的面板域名/assets/admin/umi.js
+stat -c '%a %U:%G %n' public/assets/admin/custom.css public/assets/admin/umi.js
+namei -l public/assets/admin/custom.css
+```
+
+如果这两个资源返回 403，而同目录其他资源返回 200，通常是文件或上级目录缺少 Nginx 读取/遍历权限。进入项目目录后修复公开目录权限：
+
+```bash
+find public -type d -exec chmod u+rwx,go+rx {} +
+find public -type f -exec chmod u+rw,go+r {} +
+```
+
+这只调整 `public/` 的权限，不改文件内容；不要使用 `chmod -R 777`。再执行上面的 `curl -I`，两个资源应返回 200。新版 `update.sh` 会在检查未提交改动前和切换源码后都修复该权限问题，因此本地改动不会再阻止这个修复。
+
 先检查 `COMPLETE` 并在备份目录执行 `sha256sum -c SHA256SUMS`。保留失败现场，停止 gateway/web/horizon/scheduler/redis。恢复必须将**源码、MySQL 和 Redis 同一份快照一起恢复**，不要只回滚数据库后重放新队列。
 
 推荐在新的私有项目目录解压 `project.tar.gz`，按 `manifest.txt` 的 old_commit 恢复 Git 源码并检查配置；原 `.env` 中的 Compose 项目名必须保留。通过 MySQL 客户端将 `database.sql` 导入原数据库（或先导入隔离库验证）。凭据使用权限 600 的客户端配置文件，避免在命令行中填写密码。将 `redis.tar.gz` 恢复到该实例原 Redis 卷之前，先保存失败后的卷，再清空该卷中的旧文件，避免遗留 AOF 混入快照。
