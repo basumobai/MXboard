@@ -112,21 +112,10 @@ Web 默认 2 个 Worker，不再按整台宿主机 CPU 翻倍。队列默认固�
 
 ## 已有站点更新
 
-进入已部署的面板目录。先看工作区状态：
+进入面板目录，运行 `git status --short` 检查状态：
 
-```bash
-git status --short
-```
-
-没有输出时，直接更新：
-
-```bash
-bash update.sh
-```
-
-脚本会从当前分支的 `origin` 获取快进更新，自动备份源码、配置、主题、MySQL 和 Redis，然后重建并检查服务。更新期间网站会短暂不可用；不要先运行 `git pull`。
-
-如果状态命令列出本地修改（包括未跟踪文件），先在维护窗口保存它们，再更新：
+- 没有输出：运行 `bash update.sh`。
+- 有文件列表：在维护窗口运行以下命令。它会把已修改和未跟踪文件保存在本机 stash，再执行更新。
 
 ```bash
 git stash push -u -m "before-mxboard-update"
@@ -134,11 +123,11 @@ bash update.sh
 git stash list
 ```
 
-改动会留在本机 stash 中。只在确认需要保留时，检查后再选择性恢复；不要把旧的 `public/index.php` 或其他文件未经比较直接覆盖到新版。发生冲突时保留现场并先核对，不要用 `reset --hard`、`git clean` 绕过检查。
+例如 `public/index.php`、主题图标和未跟踪的 `public/assets/admin.tar.gz` 都会被保存。不要直接丢弃这些改动。需要继续使用本地定制时，先确认它们适用于新版，再用 `git stash apply stash@{0}` 恢复；出现冲突时先停止并核对。
 
-更新后检查 `docker compose ps` 并登录面板验证。旧版更新器的首次升级、备份目录和完整恢复步骤见[安全更新与恢复](docs/safe-update.md)。
+更新脚本会备份源码、配置、主题、MySQL 和 Redis，随后重建并检查服务。更新期间网站会短暂不可用；不要先运行 `git pull`。更新后检查 `docker compose ps` 并登录面板验证。完整恢复说明见[安全更新与恢复](docs/safe-update.md)。
 
-生产服务器只从 MXboard 的 `origin` 更新。Mundo-Connect/v2board 上游改动应在开发分支审查、移植并合入 MXboard 后再部署。
+生产服务器只从 MXboard 的 `origin` 更新。上游代码应先在开发分支审查并合入 MXboard。
 
 ## 出错时看这里
 
