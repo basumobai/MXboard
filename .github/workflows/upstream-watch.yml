@@ -55,14 +55,14 @@ jobs:
           report_file="$RUNNER_TEMP/upstream-report.md"
           {
             echo "<!-- generated-by-upstream-watch -->"
-            echo "This report compares `basumobai/MXboard:${GITHUB_REF_NAME}` with `Mundo-Connect/v2board:master`."
+            printf 'This report compares `%s` with `%s`.\n' "basumobai/MXboard:${GITHUB_REF_NAME}" "Mundo-Connect/v2board:master"
             echo
-            echo "- Common ancestor: `$merge_base`"
-            echo "- Current upstream head: `$upstream_head`"
-            echo "- Upstream-only commits: **$pending**"
-            echo "- Fork-only commits: **$fork_only**"
+            printf -- '- Common ancestor: `%s`\n' "$merge_base"
+            printf -- '- Current upstream head: `%s`\n' "$upstream_head"
+            printf -- '- Upstream-only commits: **%s**\n' "$pending"
+            printf -- '- Fork-only commits: **%s**\n' "$fork_only"
             echo
-            echo "[Review upstream changes](https://github.com/Mundo-Connect/v2board/compare/${merge_base}...${upstream_head})"
+            printf '[Review upstream changes](https://github.com/Mundo-Connect/v2board/compare/%s...%s)\n' "$merge_base" "$upstream_head"
             echo
             echo "This fork has substantial custom changes. Review each upstream commit for compatibility before backporting; this workflow never merges code automatically."
             echo
