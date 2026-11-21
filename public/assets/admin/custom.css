@@ -1804,6 +1804,7 @@ textarea.ant-input {
 
     .ant-table-wrapper {
         width: 100%;
+        overflow-x: auto;
     }
 
     .ant-table-content > table {

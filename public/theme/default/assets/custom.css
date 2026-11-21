@@ -503,6 +503,7 @@ html[data-mundo-theme="darkblue"] body.mundo-user-shell {
 
     .mundo-user-shell .ant-table-wrapper {
         width: 100%;
+        overflow-x: auto;
     }
 
     .mundo-user-shell .ant-table-content > table,
