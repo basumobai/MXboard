@@ -8,31 +8,65 @@
 
 ## 更新
 
-在面板目录执行 `bash update.sh`。旧版本的脚本没有自动备份，因此第一次升级到本版本时，使用下面的方式读取新版脚本，避免先 `git pull` 改动运行中的源码：
+更新脚本从当前分支同名的 `origin` 分支获取代码，并且只接受快进更新。部署实例的 `origin` 应指向 MXboard 或你维护的兼容镜像；Mundo-Connect/v2board 上游应在开发工作副本中单独检查，不能直接作为生产更新源。不要先运行 `git pull`。
+
+### 更新前检查
+
+在面板目录执行：
 
 ```bash
-git fetch origin master
-git show origin/master:update.sh | bash -s -- --project-dir "$PWD"
+git remote get-url origin
+git branch --show-current
+git status --short
+docker compose config --quiet
 ```
 
-第一条命令必须成功后再执行第二条。此命令按你当前分支从同名 origin 分支快进更新，生产部署通常应位于 master。以后直接执行 `bash update.sh` 即可。可用 `UPDATE_BACKUP_ROOT=/path/outside/panel bash update.sh` 改变备份位置。
+确认 `origin` 与分支正确，工作区干净，Compose 配置有效，并留出足够磁盘空间。脚本会拒绝未提交修改、detached HEAD、缺少同名远端分支和非快进更新；不要用 `git reset --hard`、`git clean` 或删除数据卷来绕过检查。
 
-脚本拒绝未提交修改和非快进更新，避免覆盖手工修改的主题或部署文件。先提交这些修改并合并差异；不要使用 `reset --hard` 或 `git clean` 丢弃定制。
+### 旧版脚本首次升级
+
+如果现有 `update.sh` 还没有自动备份能力，先从当前分支读取并执行远端的新脚本：
+
+```bash
+set -euo pipefail
+branch=$(git branch --show-current)
+test -n "$branch"
+git fetch origin "$branch"
+git show FETCH_HEAD:update.sh | bash -s -- --project-dir "$PWD"
+```
+
+务必先确认 `origin` 指向部署仓库，而不是上游。引导命令不会先切换工作树；新版脚本会再检查状态、获取提交并按下述流程备份。成功后，日常更新只需运行：
+
+```bash
+bash update.sh
+```
+
+备份默认位于项目目录旁的 `mundo-backups/`。可指定另一个项目外的备份目录：
+
+```bash
+UPDATE_BACKUP_ROOT=/srv/backups/mxboard bash update.sh
+```
 
 ## 自动备份与失败处理
 
-1. 先获取目标提交、检查 Compose 并拉取 MySQL 备份工具镜像，此时服务仍在线。
-2. 停止入口、Web 和 Scheduler，等待旧流量/统计队列（含执行中的任务）排空，最多 10 分钟；再停止 Horizon。
-3. 保存源码/配置/storage/主题归档、MySQL 事务快照和停止后的 Redis 数据卷归档，生成 SHA256SUMS。备份目录权限由 umask 077 限制；数据库凭据仅临时存于文件，成功或失败退出时都删除，不进入命令参数或日志。
-4. 只有备份完整并生成 COMPLETE 标记后才快进源码，安装锁定依赖、迁移、结清遗留流量并刷新视图缓存，最后启动和健康检查。
+新版脚本按以下顺序执行，备份未完成前不会切换源码：
 
-框架升级会在备份之后删除生成的旧 config/provider/routes 缓存，不删除业务配置。
-COMPOSE_FILE=compose.hardened.yaml 时，MySQL 备份工具连接本实例 bridge 网络；Redis 由只读挂载的维护服务归档。
-私有配置继承配置目录所有者并限制其他用户读取，主机备份账号应拥有对应目录权限。
+1. 获取并校验目标提交、工作区和 Compose 配置；在停站前准备 MySQL 备份工具。
+2. 启动 Redis 后停止 gateway、web、scheduler，等待旧 `traffic_fetch` 和 `stat` 队列排空（最多 10 分钟），然后停止 Horizon。脚本只控制当前 Compose 实例；如果其他程序也写入同一数据库，应一起安排维护。
+3. 在停写状态下保存源码、配置、主题和 `storage/`，导出 MySQL，并在 Redis 保存后归档当前实例的数据卷。
+4. 校验归档，写入 `manifest.txt`、`SHA256SUMS` 和 `COMPLETE`。只有这一步完成后才执行快进更新、重建镜像、安装锁定依赖、迁移和健康检查。
 
-备份默认位于项目旁的 `mundo-backups/`。目录含 `project.tar.gz`、`database.sql`、`redis.tar.gz`、`manifest.txt`、`SHA256SUMS` 和 `COMPLETE`。源码归档只排除项目根目录的 `.git`、vendor、node_modules；主题或自定义资源里的同名目录仍完整备份。依赖可按归档里的锁文件重新安装。备份失败且尚未切换源码时会尝试恢复旧服务；切换后失败不会自动倒退数据库或启动旧 Worker。
+默认备份目录为项目目录旁的 `mundo-backups/`；自定义的 `UPDATE_BACKUP_ROOT` 也必须位于项目之外。目录默认仅当前系统用户可读写，不要放进 `public/` 或公开下载目录。备份包括 `project.tar.gz`、`database.sql`、`redis.tar.gz`、`manifest.txt`、`SHA256SUMS` 和 `COMPLETE`。源码归档排除根目录的 `.git`、`vendor`、`node_modules`；依赖可根据归档里的锁文件重新安装。
 
-备份凭据来自应用的当前数据库配置。备份用户需要导出该数据库、触发器、例程和事件的权限；不具备权限时更新停止，请先处理权限。不要将备份目录放在项目/public 或可公开下载的位置。其他程序若也向同一数据库写入，应由维护者一起停止；本脚本只控制这个 Compose 实例。
+自动备份使用应用的有效数据库配置，通过权限受限的临时文件向 MySQL 客户端提供凭据；脚本随后删除临时凭据文件，不把密码写入命令参数或日志。MySQL 备份用户必须有导出数据库、触发器、例程和事件所需权限，数据库需使用 TCP 连接。条件不满足时更新会停止。备份目录需要有足够空间。
+
+### 失败时脚本如何处理
+
+- 备份或切换源码前失败：脚本保留备份目录，并尝试重新启动旧服务。
+- 源码切换后失败：脚本不会自动倒退源码、数据库或 Redis，也不会启动旧 Worker；先保存现场日志，再决定修复迁移或完整恢复。
+- 队列超过 10 分钟仍未排空：更新停止；先查 Horizon 和队列积压原因，避免丢失旧流量任务。
+
+恢复必须使用同一次快照中的源码、MySQL 和 Redis。不要只回滚 MySQL，也不要把不同时间点的 Redis 数据卷与数据库混用。
 
 ## 恢复
 
