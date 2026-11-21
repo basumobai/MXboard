@@ -1,6 +1,6 @@
 <img src="https://avatars.githubusercontent.com/u/56885001?s=200&v=4" alt="Mundo logo" width="130" height="130" align="right"/>
 
-# V2Board for Mundo X
+# MXboard
 
 基于 [Mundo-Connect/v2board](https://github.com/Mundo-Connect/v2board) 的 Docker 部署分支，面向 Ubuntu、宝塔 Nginx、宿主机 MySQL 和 Mundo X 节点。
 
@@ -30,8 +30,8 @@
 准备好本机 Docker / Compose 2.20+ 和一个空 MySQL 数据库后，执行：
 
 ```bash
-git clone https://github.com/basumobai/v2board-for-Mundo-X-build.git mundo-v2board
-cd mundo-v2board
+git clone https://github.com/basumobai/MXboard.git mxboard
+cd mxboard
 
 bash init.sh
 ```
@@ -46,17 +46,79 @@ COMPOSE_PROJECT_NAME=panel-b WEB_PORT=6601 GATEWAY_PORT=7002 bash init.sh
 
 安装器会检测冲突，拒绝重装已有站点。详细的 HTTPS、多实例、更新和失败恢复说明见上方部署指南。已有站点请先备份并使用更新流程，不要重新运行 init.sh。
 
-## 已有站点升级
+## 已有站点更新
 
-本次更新将框架迁移至 Laravel 13，并保留流量报告与 Redis 批次的 MySQL 账本、用户账期字段和必要索引。请在维护窗口执行，并先在**生产数据副本**上验证升级；升级过程中 Web 入口会暂时停止。更新脚本会重建 PHP/Nginx 镜像并清理旧框架生成的缓存，不会自动切换隔离网络。
+生产实例应从 MXboard（或你的部署镜像）的 `origin` 更新。更新脚本会读取当前分支，并只接受同名远端分支的快进更新；它不会直接拉取 Mundo-Connect 上游代码。更新期间 Web 入口会暂时不可用，请安排维护窗口。
 
-1. 备份并确认能够恢复 MySQL 数据库、**当前实例的 Redis 数据卷**、`.env`、`config/v2board.php`、主题配置和自定义资源。MySQL 与 Redis 的备份应对应同一个维护时间点；不要只恢复其中一份后直接重放旧队列。
-2. 在已安装的 Git 仓库目录检查 `git status --short`。处理好本地修改，确认使用正确的实例名、端口和 Redis 卷，然后直接运行 `bash update.sh`。**不要先执行 `git pull`**：脚本会先获取远端代码，再停止旧服务、等待旧 `traffic_fetch` 和 `stat` 队列排空，最后切换代码、校验迁移并结算遗留 Redis 批次。
-3. 更新完成后验证 `docker compose ps`、管理员登录、节点报告与用户用量和日统计的一致性，以及 Horizon 队列状态。先恢复少量节点上报，再逐步扩大，持续观察 MySQL 锁等待、队列延迟、报告失败数和账本增长。
+### 常规更新
 
-旧报告超过 30 天会停止自动重放，需要人工核账。升级脚本或迁移校验失败时，先排查错误和队列状态；不要运行首次安装器，也不要单独回滚 MySQL 或 Redis。详细命令与故障处理见[部署指南](./How%20to%20build.md)。
+先进入已部署的面板目录，确认仓库、分支和工作区：
 
-**验证范围：**[PR #16](https://github.com/basumobai/v2board-for-Mundo-X-build/pull/16) 扩展至 100 项 PHPUnit 测试、27 项 Node 测试、真实 MySQL 并发和桌面/手机浏览器回归。部署演练覆盖双实例安装、Redis 隔离、真实 Horizon 任务、默认/隔离网络安全更新及备份恢复，以该 PR 最终提交的完整 CI 为准。测试使用一次性数据库；尚未访问生产数据副本、真实支付商户或执行生产负载压测，上线仍需验证吞吐、锁等待和队列积压。
+```bash
+cd /path/to/panel
+git remote get-url origin
+git branch --show-current
+git status --short
+```
+
+`origin` 应指向 `basumobai/MXboard` 或你维护的兼容镜像；分支应有对应的 origin 分支。若 `git status --short` 有输出，先停止更新并安全保存这些改动；把定制放到开发分支并合入部署仓库后，再让生产分支保持干净且可快进。不要在生产目录用 `reset --hard` 或 `git clean` 清理。更新脚本会拒绝未提交修改、detached HEAD 和非快进更新。
+
+正常执行：
+
+```bash
+bash update.sh
+```
+
+备份默认放在项目目录旁的 `mundo-backups/`。也可以指定项目目录之外、空间充足且不对公网开放的位置：
+
+```bash
+UPDATE_BACKUP_ROOT=/srv/backups/mxboard bash update.sh
+```
+
+脚本会先获取远端代码、检查 Compose 配置并准备数据库备份工具，再停止入口/Web/Scheduler，等待旧的 `traffic_fetch` 与 `stat` 队列排空（最多 10 分钟），停止 Horizon 和 Redis，并备份源码、配置、主题、storage、MySQL 与 Redis。只有备份校验成功后才切换代码、重建镜像、安装锁定依赖、执行升级和健康检查。不要先运行 `git pull`。
+
+### 旧版更新脚本的首次升级
+
+如果服务器上的旧 `update.sh` 还没有自动备份功能，只需先运行一次下面的引导命令。它会从当前分支读取新版脚本并执行，由新版脚本负责完成备份和快进更新：
+
+```bash
+set -euo pipefail
+branch=$(git branch --show-current)
+test -n "$branch"
+git fetch origin "$branch"
+git show FETCH_HEAD:update.sh | bash -s -- --project-dir "$PWD"
+```
+
+确认 `origin`、分支和工作区符合上面的要求后再运行。首次引导完成后，后续更新都使用 `bash update.sh`。
+
+### 更新后与失败时
+
+更新完成后检查服务和 Horizon，再实际登录管理端并确认节点上报、用户流量与日统计正常：
+
+```bash
+docker compose ps
+docker compose logs --tail=80 web gateway horizon scheduler
+docker compose exec horizon php artisan horizon:status
+```
+
+若脚本在切换源码前失败，会尝试重新启动旧服务；保留输出中的备份路径并先查日志。若源码已经切换，脚本不会自动倒退数据库或 Redis。按[安全更新与恢复指南](./docs/safe-update.md)检查校验和，并将同一备份中的源码、MySQL 和 Redis 一起恢复。不要单独回滚数据库、重新运行安装器、执行 `git reset --hard` 或 `docker compose down -v`。
+
+安装器 `init.sh` 只用于全新空数据库的首次安装，不能用于已有站点更新。
+
+## 跟进 Mundo-Connect 上游
+
+MXboard 的生产更新源是 `origin`；Mundo-Connect/v2board 是供维护者检查和挑选改动的 `upstream`。不要把生产服务器的 `origin` 改成上游，也不要直接在生产服务器合并上游分支。
+
+在开发工作副本中首次添加上游并检查差异：
+
+```bash
+git remote add upstream https://github.com/Mundo-Connect/v2board.git
+git fetch upstream
+git log --oneline --left-right --cherry-pick master...upstream/master
+git diff --stat master...upstream/master
+```
+
+逐项审查上游改动与本仓库的 Docker 部署、Laravel/PHP 版本、流量账本、队列和支付适配是否兼容；在独立开发分支中移植并验证后，再通过 Pull Request 合入 MXboard。生产机只从 MXboard 的 `origin` 更新。
 
 ## Mundo X
 
@@ -84,15 +146,15 @@ COMPOSE_PROJECT_NAME=panel-b WEB_PORT=6601 GATEWAY_PORT=7002 bash init.sh
 
 提交 Issue 时请提供可复现步骤、相关容器状态和已经打码的日志。不要公开密码、JWT、订阅令牌或节点通信密钥。
 
-## 私有仓库：服务器拉取与更新
+## 私有部署仓库：服务器拉取与更新
 
 仓库转为 Private 后，匿名 HTTPS `git clone` / `git pull` 无法继续使用。推荐给每台服务器配置**每仓库独立的只读 SSH Deploy Key**，不需要把 PAT 放进 README、Git URL 或环境配置。
 
 1. 在需要访问此项目的服务器上用 root 运行：
 
 ```bash
-ssh-keygen -t ed25519 -f /root/.ssh/github_v2board -N '' -C 'v2board-for-Mundo-X-build-deploy-readonly'
-cat /root/.ssh/github_v2board.pub
+ssh-keygen -t ed25519 -f /root/.ssh/github_mxboard -N '' -C 'mxboard-deploy-readonly'
+cat /root/.ssh/github_mxboard.pub
 ```
 
 2. 把输出的**公钥**加入对应私有仓库 `Settings → Deploy keys → Add deploy key`，不要勾选 `Allow write access`。私钥只保存在服务器（推荐权限 `0600`），不要复制到 GitHub 或公开文档。
@@ -100,10 +162,10 @@ cat /root/.ssh/github_v2board.pub
 3. 克隆并设置此项目专用的 SSH 身份：
 
 ```bash
-GIT_SSH_COMMAND='ssh -i /root/.ssh/github_v2board -o IdentitiesOnly=yes' \
-  git clone git@github.com:basumobai/v2board-for-Mundo-X-build.git
-cd v2board-for-Mundo-X-build
-git config core.sshCommand 'ssh -i /root/.ssh/github_v2board -o IdentitiesOnly=yes'
+GIT_SSH_COMMAND='ssh -i /root/.ssh/github_mxboard -o IdentitiesOnly=yes' \
+  git clone git@github.com:basumobai/MXboard.git
+cd MXboard
+git config core.sshCommand 'ssh -i /root/.ssh/github_mxboard -o IdentitiesOnly=yes'
 git fetch origin
 ```
 

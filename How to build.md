@@ -14,7 +14,7 @@
 ## 安装只执行这三条命令
 
 ```bash
-git clone https://github.com/basumobai/v2board-for-Mundo-X-build.git panel-a
+git clone https://github.com/basumobai/MXboard.git panel-a
 cd panel-a
 bash init.sh
 ```
@@ -30,7 +30,7 @@ bash init.sh
 必须使用另一个目录、另一个实例名、不同的两个监听端口和独立数据库。可以在向导里填写，也可以预设非敏感部署参数：
 
 ```bash
-git clone https://github.com/basumobai/v2board-for-Mundo-X-build.git panel-b
+git clone https://github.com/basumobai/MXboard.git panel-b
 cd panel-b
 COMPOSE_PROJECT_NAME=panel-b WEB_PORT=6601 GATEWAY_PORT=7002 WEB_WORKERS=2 bash init.sh
 ```
@@ -112,22 +112,78 @@ Web 默认 2 个 Worker，不再按整台宿主机 CPU 翻倍。队列默认固�
 
 ## 已有站点更新
 
-新版 `update.sh` 会在迁移前自动备份源码、`.env`、面板/主题配置、`storage/`、MySQL 和 Redis，备份放在项目目录之外并附校验和。备份失败不会切换代码，已有配置和自定义主题不会被删除。完整操作及旧版脚本首次升级方式见 [安全更新与恢复](docs/safe-update.md)。仍建议先在生产数据副本上验证备份可恢复。
+更新只从部署仓库的 `origin` 获取同名分支；默认部署分支是 `master`。请勿把生产目录的 `origin` 指向 Mundo-Connect/v2board。更新会短暂停止 Web 入口，先安排维护窗口，并确认备份目录有足够空间。
 
-本次流量账本升级还必须保留**同一时间点的 Redis 数据卷备份**：旧版队列与待结算流量仍在 Redis。新版节点报告在 MySQL 的一个事务里同时记录报告 ID、用户流量和日统计；Redis 的旧流量批次只用于升级过渡。切勿单独回滚数据库或替换 Redis 卷后直接重放队列。
+### 第一次更新前
+
+进入现有面板目录，确认远端、分支和工作区：
 
 ```bash
+cd /path/to/panel
+git remote get-url origin
+git branch --show-current
 git status --short
+```
+
+`origin` 应指向 MXboard 或你明确维护的兼容镜像，当前分支需要有同名的远端分支。`git status --short` 有输出时先停止更新并安全保存本地修改；把定制放到开发分支并合入部署仓库后，再让生产分支保持干净且可快进。不要在生产目录用 `git reset --hard` 或 `git clean` 清理。更新脚本不会覆盖未提交内容，也不要先执行 `git pull`。
+
+如果服务器上旧版 `update.sh` 尚无自动备份能力，首次只需通过下面的引导命令运行远端新版脚本：
+
+```bash
+set -euo pipefail
+branch=$(git branch --show-current)
+test -n "$branch"
+git fetch origin "$branch"
+git show FETCH_HEAD:update.sh | bash -s -- --project-dir "$PWD"
+```
+
+新版脚本会再次检查当前分支和工作区，然后按正常流程备份与更新。之后无需重复引导命令。
+
+### 日常更新
+
+```bash
 bash update.sh
 ```
 
-不要预先执行 `git pull`：`update.sh` 自己获取远端更新，在旧 Web 和 Horizon 停止或排空后才切换代码。如果提前切换源码，旧 Worker 可能加载新版类或用旧逻辑消费新版报告。
+备份默认保存到面板目录旁的 `mundo-backups/`。如需指定路径，必须放在项目目录之外：
 
-此版本把 `docker/nginx.conf` 用作 Nginx 环境变量模板，请不要继续用旧的固定 `default.conf` 挂载。更新会保留已有 Compose 项目名、Redis 卷、密钥和前缀。脚本先停止 Web 和 Scheduler，让旧 Horizon 排空 `traffic_fetch` 与 `stat` 队列（最多等 10 分钟），再停止 Horizon、切换代码、运行迁移并结清遗留 Redis 批次。必要账本、索引、InnoDB 和重置字段检查失败时不会启动新版服务；请根据错误修复数据或恢复备份，不要跳过检查。更新期间入口会暂时不可用。自行改过部署文件时先合并差异，脚本不会替你覆盖未提交修改。
+```bash
+UPDATE_BACKUP_ROOT=/srv/backups/mxboard bash update.sh
+```
 
-新版报告最多允许在接收后 30 天内自动重试；更旧的任务会进入失败队列，需要人工核账，避免账本清理后再次计费。流量重置每五分钟检查一次，当遗留 Redis 批次未结清时延后执行，成功重置的用户当天不会再次清零。上报以面板接收时刻归入账期；节点自身若把跨账期的使用量合并成一次上报，面板无法从这个汇总里还原每一字节的实际发生时刻。
+脚本按以下顺序操作：
 
-原来的安装脚本只用于首次安装，不应用于更新或迁移旧数据库。
+1. 获取当前分支对应的 `origin` 更新，检查工作区干净、更新可快进、Compose 配置有效，并在停站前准备 MySQL 备份镜像。
+2. 停止 gateway、web 和 scheduler，等待旧的 `traffic_fetch`、`stat` 队列（包括正在运行的任务）排空，最长 10 分钟；再停止 Horizon。
+3. 生成同一维护时点的源码/配置/主题/storage 归档、MySQL 导出和 Redis 数据归档，写入清单、SHA256 校验和及 `COMPLETE` 标记。
+4. 备份完整后才快进源码，重建 web/gateway 镜像、按锁文件安装 Composer 依赖、执行面板升级并结清旧 Redis 流量批次，最后启动服务和健康检查。
+
+更新期间入口暂时不可用。若队列在 10 分钟内没有排空，脚本会停止更新并尝试恢复旧服务；先处理积压原因，不要改用手工拉代码绕过检查。若使用自定义备份目录，确保磁盘空间充足、权限受控且不在 `public/` 下。
+
+### 更新完成或失败
+
+完成后检查容器、日志、Horizon，并实际验证管理端登录、节点报告、用户用量及日统计：
+
+```bash
+docker compose ps
+docker compose logs --tail=80 web gateway horizon scheduler
+docker compose exec horizon php artisan horizon:status
+```
+
+失败时保留终端输出和备份目录。源码尚未切换时脚本会尝试启动旧服务；源码已切换时不会自动回滚迁移、数据库或 Redis。需要恢复时，先验证 `COMPLETE` 和 `SHA256SUMS`，然后按[安全更新与恢复](docs/safe-update.md)把同一快照中的源码、MySQL 和 Redis 一起恢复。不要只回滚数据库或单独替换 Redis 卷。
+
+### 跟进上游代码（维护者）
+
+在开发工作副本中将 MXboard 保持为 `origin`，将 Mundo-Connect/v2board 作为 `upstream`。首次添加上游后，后续通过 `git fetch upstream` 查看变化：
+
+```bash
+git remote add upstream https://github.com/Mundo-Connect/v2board.git
+git fetch upstream
+git log --oneline --left-right --cherry-pick master...upstream/master
+git diff --stat master...upstream/master
+```
+
+上游变更需要先检查与本仓库框架版本、Docker 部署、流量账本和队列改造的兼容性，再在独立分支移植并提交 Pull Request。生产服务器只运行 `bash update.sh` 从 MXboard 的 `origin` 更新。
 
 ## 出错时看这里
 
