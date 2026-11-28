@@ -26,7 +26,11 @@ class ServerService
             $tlsSettings['private_key'],
             $tlsSettings['ech_key'],
             $tlsSettings['tls_key'],
-            $tlsSettings['tls_cert']
+            $tlsSettings['tls_cert'],
+            $tlsSettings['cert_file'],
+            $tlsSettings['key_file'],
+            $tlsSettings['provider'],
+            $tlsSettings['dns_env']
         );
 
         return $tlsSettings;
@@ -245,7 +249,9 @@ class ServerService
                     $v2node[$key]['encryption_settings'] = array_diff_key($v2node[$key]['encryption_settings'], array('private_key' => ''));
                 }
             }
-            $servers[] = $v2node[$key]->toArray();
+            $server = $v2node[$key]->toArray();
+            unset($server['trusted_x_forwarded_for']);
+            $servers[] = $server;
         }
         return $servers;
     }

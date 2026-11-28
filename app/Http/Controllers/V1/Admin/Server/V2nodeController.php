@@ -188,13 +188,13 @@ class V2nodeController extends Controller
             $params['down_mbps'] = 0;
         }
 
-        if(isset($params['obfs'])) {
-            if(!isset($params['obfs_password']))  $params['obfs_password'] = Helper::getServerKey($request->input('created_at'), 16);
+        if (isset($params['obfs'])) {
+            if (!isset($params['obfs_password']))  $params['obfs_password'] = Helper::getServerKey($request->input('created_at'), 16);
         } else {
             $params['obfs_password'] = null;
         }
 
-        if($params['protocol'] == 'shadowsocks' && !isset($params['cipher'])) {
+        if ($params['protocol'] == 'shadowsocks' && !isset($params['cipher'])) {
             $params['cipher'] = 'aes-128-gcm';
         }
 
