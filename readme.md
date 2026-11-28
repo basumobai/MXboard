@@ -23,6 +23,8 @@
 
 ## 部署文档
 
+**Xiao 原版管理员前端：**需要给 `wyx2685/v2board` 单独安装同款管理界面时，请使用 [Xiao 管理员前端包](./variants/xiao-admin/README.md)。该变体移除了 Mundo 专属 API、协议和传输选项，保留本分支的布局与节点操作修复；安装内容仅为管理员静态资源和模板。
+
 [阅读完整 Docker 部署与排错指南](./How%20to%20build.md)
 
 [安全升级记录与上游提交处置](./docs/security-upgrade-20261101.md) · [隔离部署迁移](./docs/hardened-deployment.md) · [安全更新与恢复](./docs/safe-update.md)
