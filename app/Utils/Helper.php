@@ -182,6 +182,30 @@ class Helper
         return '';
     }
 
+    public static function getTlsCertificateFingerprint(array $server): ?string
+    {
+        if ((int) ($server['tls'] ?? 1) !== 1) {
+            return null;
+        }
+
+        $tlsSettings = $server['tls_settings'] ?? $server['tlsSettings'] ?? [];
+        $pin = $tlsSettings['pinned_peer_cert_sha256'] ?? null;
+        if (!is_string($pin)) {
+            return null;
+        }
+
+        $fingerprint = strtolower(str_replace(':', '', trim($pin)));
+        return preg_match('/\\A[0-9a-f]{64}\\z/', $fingerprint) ? $fingerprint : null;
+    }
+
+    public static function appendTlsCertificateFingerprint(array &$config, array $server, string $option): void
+    {
+        $fingerprint = self::getTlsCertificateFingerprint($server);
+        if ($fingerprint !== null) {
+            $config[] = "{$option}={$fingerprint}";
+        }
+    }
+
     public static function buildUriString($scheme, $auth, $server, $name, $params = [])
     {
         $host = self::formatHost($server['host']);
@@ -241,8 +265,9 @@ class Helper
         if ($server['tls']) {
             $tlsSettings = $server['tls_settings'] ?? $server['tlsSettings'] ?? [];
             $config['allowInsecure'] = (int)($tlsSettings['allow_insecure'] ?? $tlsSettings['allowInsecure'] ?? 0);
+            $config['insecure'] = (string)$config['allowInsecure'];
             $config['sni'] = $tlsSettings['server_name'] ?? $tlsSettings['serverName'] ?? '';
-            self::addPinnedPeerCertificate($config, $tlsSettings);
+            if ((int) $server['tls'] === 1) self::addPinnedPeerCertificate($config, $tlsSettings);
         }
         
         $network = (string)$server['network'];
@@ -322,10 +347,13 @@ class Helper
             "insecure" => $tlsSettings['allow_insecure'] ?? 0,
         ];
 
+        if ((int) $server['tls'] === 1 && !empty($tlsSettings['pinned_peer_cert_sha256'])) {
+            $config['allowInsecure'] = $config['insecure'];
+        }
         if ($server['tls']) {
             $tlsSettings = $server['tls_settings'] ?? [];
             $config['sni'] = $tlsSettings['server_name'] ?? '';
-            self::addPinnedPeerCertificate($config, $tlsSettings);
+            if ((int) $server['tls'] === 1) self::addPinnedPeerCertificate($config, $tlsSettings);
             if ($server['tls'] == 2) {
                 $config['pbk'] = $tlsSettings['public_key'] ?? '';
                 $config['sid'] = $tlsSettings['short_id'] ?? '';
@@ -356,13 +384,15 @@ class Helper
     public static function buildTrojanUri($password, $server)
     {
         $tlsSettings = $server['tls_settings'] ?? [];
+        $allowInsecure = $server['allow_insecure'] ?? $tlsSettings['allow_insecure'] ?? 0;
         $config = [
-            'allowInsecure' => $server['allow_insecure'] ?? ($tlsSettings['allow_insecure'] ?? 0),
+            'allowInsecure' => $allowInsecure,
+            'insecure' => $allowInsecure,
             'peer' => $server['server_name'] ?? ($tlsSettings['server_name'] ?? ''),
             'sni' => $server['server_name'] ?? ($tlsSettings['server_name'] ?? ''),
             'type'=> $server['network'],
         ];
-        self::addPinnedPeerCertificate($config, $tlsSettings);
+        if ((int) ($server['tls'] ?? 1) === 1) self::addPinnedPeerCertificate($config, $tlsSettings);
 
         if (isset($server['network']) && isset($server['network_settings'])) {
             if ($server['network'] === 'mc1') {
@@ -491,8 +521,13 @@ class Helper
         $insecure = $tlsSettings['allow_insecure'] ?? 0;
         $sni = $tlsSettings['server_name'] ?? '';
         $uri = "hysteria2://{$password}@{$remote}:{$firstPort}/?insecure={$insecure}&sni={$sni}";
-        if (!empty($tlsSettings['pinned_peer_cert_sha256'])) {
-            $uri .= '&pcs=' . rawurlencode($tlsSettings['pinned_peer_cert_sha256']);
+        $fingerprint = self::getTlsCertificateFingerprint($server);
+        if ($fingerprint !== null) {
+            $uri .= "&pinSHA256={$fingerprint}";
+        }
+        $pcs = $fingerprint ?? ($tlsSettings['pinned_peer_cert_sha256'] ?? '');
+        if (is_string($pcs) && $pcs !== '') {
+            $uri .= '&pcs=' . rawurlencode($pcs);
         }
 
         if (isset($server['obfs']) && isset($server['obfs_password'])) {
@@ -516,7 +551,7 @@ class Helper
             'disable_sni' => $server['disable_sni'],
             'udp_relay_mode' => $server['udp_relay_mode'],
         ];
-        self::addPinnedPeerCertificate($config, $tlsSettings);
+        if ((int) ($server['tls'] ?? 1) === 1) self::addPinnedPeerCertificate($config, $tlsSettings);
 
         $remote = self::formatHost($server['host']);
         $port = $server['port'];
@@ -534,7 +569,7 @@ class Helper
             'insecure' => $server['insecure'] ?? ($tlsSettings['allow_insecure'] ?? 0),
             'fp' => $tlsSettings['fingerprint'] ?? 'chrome',
         ];
-        self::addPinnedPeerCertificate($config, $tlsSettings);
+        if ((int) ($server['tls'] ?? 1) === 1) self::addPinnedPeerCertificate($config, $tlsSettings);
         if (isset($server['server_name']) || isset($tlsSettings['server_name'])) {
             $config['sni'] = $server['server_name'] ?? ($tlsSettings['server_name'] ?? '');
         }
